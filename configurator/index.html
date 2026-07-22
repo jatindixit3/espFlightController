@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32 FC Configurator</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <h1>ESP32 Flight Controller <span class="subtle">Configurator</span></h1>
+  <div id="connectionBar">
+    <button id="connectBtn">Connect</button>
+    <span id="fcIdentify" class="subtle"></span>
+    <span id="armedBadge" class="status-badge armed hidden">ARMED</span>
+    <span id="failsafeBadge" class="status-badge failsafe hidden">FAILSAFE</span>
+    <span id="calBadge" class="status-badge warn hidden">GYRO NOT CALIBRATED</span>
+    <span id="batteryBadge" class="status-badge hidden"></span>
+  </div>
+</header>
+
+<nav id="tabNav">
+  <button data-tab="setup" class="tab-btn active">Setup</button>
+  <button data-tab="ports">Ports</button>
+  <button data-tab="configuration">Configuration</button>
+  <button data-tab="pid">PID Tuning</button>
+  <button data-tab="rates">Rates</button>
+  <button data-tab="receiver">Receiver</button>
+  <button data-tab="modes">Modes</button>
+  <button data-tab="motors">Motors</button>
+  <button data-tab="failsafe">Failsafe</button>
+  <button data-tab="blackbox">Blackbox</button>
+  <button data-tab="cli">CLI</button>
+</nav>
+
+<main>
+
+  <section id="tab-setup" class="tab-panel active">
+    <div class="panel-row">
+      <div class="card">
+        <h2>Attitude</h2>
+        <canvas id="attitudeCanvas" width="280" height="280"></canvas>
+        <div class="readout-grid">
+          <div>Roll <span id="attRoll">-</span>&deg;</div>
+          <div>Pitch <span id="attPitch">-</span>&deg;</div>
+          <div>Yaw <span id="attYaw">-</span>&deg;</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Gyro Calibration</h2>
+        <p class="hint">Set the quad down on a flat, still surface, props off, before calibrating.
+        Calibration is rejected automatically if the accelerometer detects the board isn't actually still.</p>
+        <button id="calibrateBtn">Calibrate Gyro</button>
+        <p id="calibrateStatus" class="hint"></p>
+        <h2>Raw Sensors</h2>
+        <div class="readout-grid">
+          <div>Gyro X <span id="gyroX">-</span> &deg;/s</div>
+          <div>Gyro Y <span id="gyroY">-</span> &deg;/s</div>
+          <div>Gyro Z <span id="gyroZ">-</span> &deg;/s</div>
+          <div>Accel X <span id="accelX">-</span> g</div>
+          <div>Accel Y <span id="accelY">-</span> g</div>
+          <div>Accel Z <span id="accelZ">-</span> g</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-ports" class="tab-panel">
+    <div class="card">
+      <h2>Ports</h2>
+      <p class="hint">This board's UART/I2C/RMT pin assignments are fixed at compile time (see
+      firmware/include/config.h and docs/HARDWARE.md) rather than software-remappable like a
+      multi-UART F4/F7 - there's only one MPU6050, one SBUS input, one ESC telemetry wire, and
+      one motor output set, wired to specific pins. Nothing here is editable; it's shown so you
+      know what's using what.</p>
+      <table class="info-table">
+        <tr><th>Function</th><th>Pin (XIAO label / GPIO)</th><th>Notes</th></tr>
+        <tr><td>Motor 1-4 (DShot300)</td><td>D0-D3 / GPIO1-4</td><td>RMT, unidirectional</td></tr>
+        <tr><td>I2C SDA / SCL (MPU6050)</td><td>D4 / D5 (GPIO5/6)</td><td>400kHz Fast-mode</td></tr>
+        <tr><td>ESC telemetry RX</td><td>D6 / GPIO43</td><td>UART, 115200 baud</td></tr>
+        <tr><td>SBUS RX</td><td>D7 / GPIO44</td><td>UART, inverted, 100000 baud, 8E2</td></tr>
+        <tr><td>WS2812 LED data</td><td>D8 / GPIO7</td><td></td></tr>
+        <tr><td>Buzzer</td><td>D9 / GPIO8</td><td>via NPN transistor</td></tr>
+        <tr><td>Spare</td><td>D10 / GPIO9</td><td>unused, reserved</td></tr>
+        <tr><td>Configurator / CLI</td><td>USB-C (native USB-CDC)</td><td>this connection</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-configuration" class="tab-panel">
+    <div class="panel-row">
+      <div class="card">
+        <h2>Board Alignment</h2>
+        <p class="hint">If the FC isn't mounted pointing straight forward, tell the firmware how
+        it's rotated instead of physically re-mounting it.</p>
+        <label>Roll <input type="number" id="alignRoll" step="0.1"></label>
+        <label>Pitch <input type="number" id="alignPitch" step="0.1"></label>
+        <label>Yaw <input type="number" id="alignYaw" step="0.1"></label>
+      </div>
+      <div class="card">
+        <h2>Motor / Battery</h2>
+        <label>Motor idle % <input type="number" id="motorIdle" step="0.1"></label>
+        <label>Motor pole pairs <input type="number" id="polePairs" step="1"></label>
+        <label>Battery cell override (0=auto) <input type="number" id="cellOverride" step="1"></label>
+        <label>Warning V/cell <input type="number" id="battWarn" step="0.01"></label>
+        <label>Critical V/cell <input type="number" id="battCrit" step="0.01"></label>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="configuration">Read From FC</button>
+      <button class="write-btn" data-target="configuration">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+      <span class="save-note">Write sends changes to RAM immediately; Save persists across reboots.</span>
+    </div>
+  </section>
+
+  <section id="tab-pid" class="tab-panel">
+    <div class="card">
+      <h2>PID</h2>
+      <table class="pid-table" id="pidTable">
+        <tr><th></th><th>P</th><th>I</th><th>D</th><th>FF</th></tr>
+        <tr><td>Roll</td><td><input type="number" step="0.1" id="pid-0-P"></td><td><input type="number" step="0.1" id="pid-0-I"></td><td><input type="number" step="0.1" id="pid-0-D"></td><td><input type="number" step="0.1" id="pid-0-FF"></td></tr>
+        <tr><td>Pitch</td><td><input type="number" step="0.1" id="pid-1-P"></td><td><input type="number" step="0.1" id="pid-1-I"></td><td><input type="number" step="0.1" id="pid-1-D"></td><td><input type="number" step="0.1" id="pid-1-FF"></td></tr>
+        <tr><td>Yaw</td><td><input type="number" step="0.1" id="pid-2-P"></td><td><input type="number" step="0.1" id="pid-2-I"></td><td><input type="number" step="0.1" id="pid-2-D"></td><td><input type="number" step="0.1" id="pid-2-FF"></td></tr>
+      </table>
+    </div>
+    <div class="panel-row">
+      <div class="card">
+        <h2>Filters</h2>
+        <label>D-term lowpass (Hz) <input type="number" id="dtermLpf" step="1"></label>
+        <label>Gyro lowpass (Hz) <input type="number" id="gyroLpf" step="1"></label>
+        <label><input type="checkbox" id="rpmFilterEnabled"> RPM notch filter (needs healthy ESC telemetry)</label>
+      </div>
+      <div class="card">
+        <h2>Leveling (Angle / Horizon)</h2>
+        <label>Level gain P <input type="number" id="levelGainP" step="0.1"></label>
+        <label>Horizon tilt effect (0-100) <input type="number" id="horizonTiltEffect" step="1"></label>
+        <label>Max angle (deg) <input type="number" id="maxAngleDeg" step="1"></label>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="pid">Read From FC</button>
+      <button class="write-btn" data-target="pid">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+    </div>
+  </section>
+
+  <section id="tab-rates" class="tab-panel">
+    <div class="panel-row">
+      <div class="card">
+        <h2>Rates</h2>
+        <table class="pid-table" id="ratesTable">
+          <tr><th></th><th>RC Rate</th><th>Super Rate</th><th>Expo</th></tr>
+          <tr><td>Roll</td><td><input type="number" step="0.01" id="rate-0-rcRate"></td><td><input type="number" step="0.01" id="rate-0-superRate"></td><td><input type="number" step="0.01" id="rate-0-expo"></td></tr>
+          <tr><td>Pitch</td><td><input type="number" step="0.01" id="rate-1-rcRate"></td><td><input type="number" step="0.01" id="rate-1-superRate"></td><td><input type="number" step="0.01" id="rate-1-expo"></td></tr>
+          <tr><td>Yaw</td><td><input type="number" step="0.01" id="rate-2-rcRate"></td><td><input type="number" step="0.01" id="rate-2-superRate"></td><td><input type="number" step="0.01" id="rate-2-expo"></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Curve preview (Roll)</h2>
+        <canvas id="ratesCanvas" width="280" height="220"></canvas>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="rates">Read From FC</button>
+      <button class="write-btn" data-target="rates">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+    </div>
+  </section>
+
+  <section id="tab-receiver" class="tab-panel">
+    <div class="card">
+      <h2>Channels</h2>
+      <div id="channelBars"></div>
+    </div>
+    <div class="card">
+      <h2>Calibration</h2>
+      <label>RX min (us) <input type="number" id="rxMin" step="1"></label>
+      <label>RX mid (us) <input type="number" id="rxMid" step="1"></label>
+      <label>RX max (us) <input type="number" id="rxMax" step="1"></label>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="receiver">Read From FC</button>
+      <button class="write-btn" data-target="receiver">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+    </div>
+  </section>
+
+  <section id="tab-modes" class="tab-panel">
+    <div class="card">
+      <h2>Modes</h2>
+      <p class="hint">AUX1 = SBUS channel 5 (index 4). Range is in microseconds, 988-2012 typical.</p>
+      <table class="info-table" id="modesTable">
+        <tr><th>Mode</th><th>AUX channel</th><th>Range start</th><th>Range end</th><th>Live</th></tr>
+      </table>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="modes">Read From FC</button>
+      <button class="write-btn" data-target="modes">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+    </div>
+  </section>
+
+  <section id="tab-motors" class="tab-panel">
+    <div class="card danger-card">
+      <h2>Motor Test</h2>
+      <p class="hint"><strong>Remove propellers before using this tab.</strong> Motor test only works
+      while disarmed, but the motors WILL spin.</p>
+      <label><input type="checkbox" id="motorTestArm"> Props are off, enable motor test</label>
+      <div id="motorSliders"></div>
+    </div>
+    <div class="card">
+      <h2>ESC Telemetry</h2>
+      <table class="info-table" id="escTelemetryTable">
+        <tr><th>Motor</th><th>Temp</th><th>Voltage</th><th>Current</th><th>eRPM</th><th>Age</th></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-failsafe" class="tab-panel">
+    <div class="card">
+      <h2>Failsafe</h2>
+      <p class="hint">This firmware uses the simplest-safe failsafe behavior: if the SBUS link is
+      lost for longer than the timeout below, it disarms and cuts all motors immediately - no
+      staged descent (there's no GPS/baro on this build to do anything smarter with).</p>
+      <label>Failsafe timeout (ms) <input type="number" id="failsafeTimeoutMs" step="10"></label>
+    </div>
+    <div class="card-actions">
+      <button class="load-btn" data-target="failsafe">Read From FC</button>
+      <button class="write-btn" data-target="failsafe">Write To FC</button>
+      <button class="save-btn">Save To Flash</button>
+    </div>
+  </section>
+
+  <section id="tab-blackbox" class="tab-panel">
+    <div class="card">
+      <h2>Blackbox</h2>
+      <p class="hint">Logs to a raw flash region and restarts from the beginning every boot (no
+      persistent ring buffer across power cycles) - download and save a log before your next
+      flight if you want to keep it.</p>
+      <label>Log every Nth loop <input type="number" id="blackboxRateDivider" step="1"></label>
+      <div class="card-actions">
+        <button class="load-btn" data-target="blackbox">Read From FC</button>
+        <button class="write-btn" data-target="blackbox">Write To FC</button>
+        <button class="save-btn">Save To Flash</button>
+      </div>
+      <p id="blackboxInfo" class="hint"></p>
+      <button id="downloadBlackboxBtn">Download Log (.csv)</button>
+      <button id="eraseBlackboxBtn" class="danger-btn">Erase Log</button>
+      <div id="blackboxProgress" class="hint"></div>
+    </div>
+  </section>
+
+  <section id="tab-cli" class="tab-panel">
+    <div class="card">
+      <h2>CLI</h2>
+      <p class="hint">This is a read-only settings dump, not an interactive command shell - the
+      firmware doesn't implement a text command parser (that's real added scope beyond the binary
+      MSP-style protocol everything else here uses). Use the other tabs to change values; use this
+      to grab a full text snapshot for backup/sharing.</p>
+      <button id="dumpBtn">Generate Dump</button>
+      <button id="copyDumpBtn">Copy to Clipboard</button>
+      <textarea id="dumpOutput" rows="20" readonly></textarea>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/msp-client.js"></script>
+<script src="js/fc-api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
