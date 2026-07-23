@@ -1,4 +1,4 @@
-# IS2026 Spring - ESP32-S3 Flight Controller
+ESP32-S3 Flight Controller
 
 A from-scratch, Betaflight-style flight controller for a 5" freestyle quadcopter,
 built on the **Seeed Studio XIAO ESP32-S3**. It runs a real 1&nbsp;kHz flight loop
