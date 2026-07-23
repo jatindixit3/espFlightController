@@ -71,6 +71,5 @@ MIT open source [license](http://opensource.org/licenses/MIT).
 
 > _List team members and contact emails or GitHub profiles._
 
-- **Jatin Dixit** — jatin.dixit2013@gmail.com — _[add your GitHub handle here]_
->
+- **Jatin Dixit** — jdxt47@gmail.com - jatindixit3
 > ---
