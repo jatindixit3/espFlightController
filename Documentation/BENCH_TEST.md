@@ -17,7 +17,7 @@ quick check."
 ## 2. Power discipline
 
 - Never connect USB and the flight battery at the same time (see
-  `docs/HARDWARE.md` - the XIAO's 5V pad has no reverse-protection diode from
+  `Electronics/HARDWARE.md` - the XIAO's 5V pad has no reverse-protection diode from
   the factory). Bench-test over USB with the battery disconnected.
 
 ## 3. Flash and connect
@@ -98,7 +98,7 @@ open `http://localhost:8000` in Chrome/Edge) and click **Connect**.
 
 ## 8. PID/Rates: start from the shipped defaults, don't guess big changes
 
-The defaults in `firmware/src/settings.cpp` are deliberately conservative
+The defaults in `Code/firmware/src/settings.cpp` are deliberately conservative
 starting points, not a tuned result - expect to do real tuning, the same as
 setting up any fresh flight controller. Change one thing at a time, retest
 on the bench (props off, hand-hold the quad, watch how it responds to

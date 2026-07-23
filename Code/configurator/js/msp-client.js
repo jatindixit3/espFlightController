@@ -1,6 +1,6 @@
 // MSP-style binary protocol client over the Web Serial API.
-// Wire format and command IDs must match firmware/src/msp.cpp exactly -
-// see docs/PROTOCOL.md for the authoritative reference.
+// Wire format and command IDs must match Code/firmware/src/msp.cpp exactly -
+// see Documentation/PROTOCOL.md for the authoritative reference.
 
 const MSP = {
     IDENTIFY: 100,

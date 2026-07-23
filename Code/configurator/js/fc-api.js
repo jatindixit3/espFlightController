@@ -1,5 +1,5 @@
 // Typed high-level API wrapping MspClient - one method per command, matching
-// docs/PROTOCOL.md exactly. UI code (app.js) should only ever talk to this,
+// Documentation/PROTOCOL.md exactly. UI code (app.js) should only ever talk to this,
 // never build raw MSP frames itself.
 
 class FcApi {

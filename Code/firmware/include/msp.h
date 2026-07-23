@@ -5,8 +5,8 @@
 // MSP-style binary protocol server over native USB CDC (the same port used
 // for flashing). This is a custom, MSPv1-*framed* protocol (same $M< / $M>
 // header/checksum shape as real MSP) but with our own command set - it talks
-// to configurator/js/msp-client.js in this repo, not the real Betaflight
-// Configurator. See docs/PROTOCOL.md for the exact wire format.
+// to Code/configurator/js/msp-client.js in this repo, not the real Betaflight
+// Configurator. See Documentation/PROTOCOL.md for the exact wire format.
 // ============================================================================
 
 void mspInit();

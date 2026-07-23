@@ -1,8 +1,8 @@
 # FC-Configurator wire protocol
 
 Custom binary protocol, framed like classic MSPv1 but with its own command
-set. Implemented in `firmware/src/msp.cpp` (server) and
-`configurator/js/msp-client.js` (client). Transport: native USB-CDC serial
+set. Implemented in `Code/firmware/src/msp.cpp` (server) and
+`Code/configurator/js/msp-client.js` (client). Transport: native USB-CDC serial
 (Web Serial API in the browser), 115200 baud is irrelevant for USB-CDC but
 the port is opened at that rate for compatibility.
 
@@ -61,7 +61,7 @@ anything currently sent.
 ## Blackbox frame format (read back via BLACKBOX_READ)
 
 Raw flash region, sequential fixed-size records (`sizeof(BlackboxFrame)` in
-`firmware/include/blackbox.h`), no filesystem:
+`Code/firmware/include/blackbox.h`), no filesystem:
 
 ```
 magic:u32 ("BLKX" = 0x424C4B58)

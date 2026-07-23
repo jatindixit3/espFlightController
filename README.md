@@ -1,129 +1,76 @@
-# ESP32-S3 Flight Controller
+# IS2026 Spring - ESP32-S3 Flight Controller
 
-A from-scratch Betaflight-style flight controller for the Seeed XIAO ESP32-S3,
-using an MPU6050 gyro/accel, AM32 ESCs over bidirectional DShot300 +
-ESC telemetry, and SBUS RC input - plus a browser-based tuning configurator
-that talks to it, modeled on Betaflight Configurator (minus OSD, which was
-explicitly out of scope).
+A from-scratch, Betaflight-style flight controller for a 5" freestyle quadcopter,
+built on the **Seeed Studio XIAO ESP32-S3**. It runs a real 1&nbsp;kHz flight loop
+(gyro + accelerometer fusion, PID + feedforward, RPM-aware filtering, blackbox
+logging, LED/buzzer status) and ships with its own **browser-based tuning
+configurator** modeled on Betaflight Configurator - talking to the board over USB
+using a custom MSP-style protocol. The one deliberate omission is OSD.
 
-**Read [docs/BENCH_TEST.md](docs/BENCH_TEST.md) before your first flight.**
-This is new firmware on a hobby-grade gyro - bench-test it properly.
+- **Gyro:** MPU6050 (I2C)
+- **ESCs:** AM32, bidirectional DShot300 + telemetry wire
+- **Receiver:** SBUS
+- **Airframe:** 5" freestyle quad, 4S, ~2200&nbsp;mAh
+- **Status LEDs / buzzer:** WS2812 (over SPI) + piezo buzzer
 
-## What this is (and isn't)
+> ⚠️ This firmware has **not flown yet**. It compiles clean and its logic has been
+> reasoned through carefully, but "no compile errors" is not "flight-proven."
+> Work through **[Documentation/BENCH_TEST.md](Documentation/BENCH_TEST.md)** on the
+> bench, props off, before it ever sees a battery outdoors.
 
-This targets the same *feel* as an F4/F7 board running Betaflight - angle/
-horizon/acro flight modes, PID + feedforward, RPM-aware filtering, blackbox,
-LED/buzzer status, a full web tuning UI - built for a much cheaper part
-(MPU6050 over I2C instead of an SPI gyro like the ICM42688P). One real,
-unavoidable limit: I2C tops out around a 1kHz gyro/PID loop here, versus
-8kHz+ on real F7 boards. For 5" freestyle flying that's still genuinely
-flyable and can feel good with proper filtering; it will not match an F7's
-raw loop rate or noise floor. See [docs/HARDWARE.md](docs/HARDWARE.md) for
-the full pinout and the reasoning behind every hardware decision.
+## Repository contents
 
-It is **not** a wire-compatible clone of real Betaflight firmware or the real
-Betaflight Configurator - it's a custom, MSP-*framed* protocol (see
-[docs/PROTOCOL.md](docs/PROTOCOL.md)) with its own command set, paired with
-its own configurator built to match. It reuses Betaflight's *concepts*
-(PID+FF, rates curves, AUX mode ranges, RPM filtering, blackbox) faithfully,
-not its exact wire format or source code.
+| Folder | Contents |
+|--------|----------|
+| **[Code/](Code/)** | All source code: the `firmware/` PlatformIO project (the flight controller itself) and the `configurator/` web app (the tuning UI). |
+| **[Electronics/](Electronics/)** | Full pinout, wiring rationale, power notes, and the pinout diagram. |
+| **[Documentation/](Documentation/)** | Project overview and build guide, the FC&harr;configurator wire protocol, the pre-flight bench-test checklist, and the system flow diagram. |
+| **[Reference_Data/](Reference_Data/)** | Datasheets and specifications the build relies on (XIAO ESP32-S3, MPU6050, SBUS, DShot / bidirectional DShot, AM32, etc.). |
+| **[Photos_Videos/](Photos_Videos/)** | Build photos, prototype progress, and demo videos. |
+| **[BOM.csv](BOM.csv)** | Bill of materials. |
 
-## Repo layout
+## Quick start
 
-```
-firmware/       PlatformIO project (ESP32-S3, Arduino framework)
-  platformio.ini
-  partitions.csv      custom flash layout incl. the blackbox partition
-  include/*.h          one header per subsystem
-  src/*.cpp
-configurator/   Static web app (no build step) - open configurator/index.html
-  js/msp-client.js     Web Serial transport + wire-format encode/decode
-  js/fc-api.js         typed request/response wrapper
-  js/app.js            tabs UI
-docs/
-  HARDWARE.md          pinout, wiring rationale, power notes
-  PROTOCOL.md          exact wire format (firmware <-> configurator)
-  BENCH_TEST.md        pre-flight safety checklist - read this first
-```
-
-## Building and flashing the firmware
-
-Requires [PlatformIO](https://platformio.org/) (`pip install platformio`, or
-the VS Code extension).
+**Build & flash the firmware** (requires [PlatformIO](https://platformio.org/)):
 
 ```bash
-cd firmware
-pio run                # build
-pio run -t upload      # build + flash over USB-C
-pio device monitor      # serial log (115200 baud)
+cd Code/firmware
+pio run              # build
+pio run -t upload    # build + flash over USB-C
 ```
 
-Compiles clean with `-Wall -Wextra` at the time of writing - if a PlatformIO/
-Arduino-ESP32 core update introduces new warnings, treat them as blocking on
-this specific project (it's a flight controller).
-
-## Using the configurator
-
-Web Serial (what the configurator uses to talk to the FC over USB) requires
-a real HTTP origin or `localhost` - it will not work if you just double-click
-`index.html` in some browsers. Serve it locally:
+**Open the configurator** (Chrome or Edge - it uses the Web Serial API, which
+needs a real origin, not a double-clicked file):
 
 ```bash
-cd configurator
+cd Code/configurator
 python -m http.server 8000
+# then open http://localhost:8000 and click Connect
 ```
 
-Then open `http://localhost:8000` in **Chrome or Edge** (Web Serial isn't
-implemented in Firefox/Safari). Click **Connect**, pick the FC's serial port.
+See **[Documentation/README.md](Documentation/README.md)** for the full walkthrough.
 
-Tabs: Setup, Ports (informational - pins are fixed, see HARDWARE.md),
-Configuration, PID Tuning, Rates, Receiver, Modes, Motors (Betaflight-style
-QuadX diagram - click a motor to spin it, reorder outputs, reverse direction;
-throttle capped at 50%), Failsafe, Blackbox, CLI (read-only settings dump, not
-an interactive shell - see the tab itself for why). No OSD tab, per the
-original request.
+## License
 
-## Key design decisions worth knowing about
+Licenses
 
-- **Gyro calibration is gated on the accelerometer.** At boot (and on demand
-  from the Setup tab), the firmware only accepts a gyro bias if the
-  accelerometer confirms the board was genuinely still throughout the
-  sampling window - otherwise it retries rather than baking in a bad bias
-  from a board that was bumped mid-calibration.
-- **Bidirectional DShot is implemented and on by default** (per explicit
-  request), with the ESC telemetry wire kept as the voltage/current source
-  and automatic RPM fallback. Every GCR response is CRC-checked - a decode
-  failure can only degrade filter quality, never motor control - but the
-  decode is unverified on real hardware until you run the bench check in
-  `docs/BENCH_TEST.md` step 7. The toggle (Configuration tab) reverts to
-  normal DShot300 with a save + reboot. A side effect: the WS2812 strip
-  moved from the RMT-based Adafruit library to a custom SPI driver
-  (`firmware/src/ws2812.cpp`), because motors now consume all 8 RMT
-  channels - this also fixed a latent init-order conflict where the LED
-  library could steal motor 1's RMT channel.
-- **Battery voltage and current both come from ESC telemetry**, not a
-  dedicated ADC voltage divider - per the "no extra components" constraint
-  from the build spec. Trade-off: updates at the ESC's telemetry rate (tens
-  of Hz), not instantly.
-- **Failsafe is an immediate motor cut**, not a staged descent - there's no
-  GPS/baro on this build to do anything smarter with, and "simplest safe
-  default" beats a half-implemented fancy behavior.
-- **Blackbox restarts from flash offset 0 every boot** (no persisted ring
-  buffer across power cycles) - download and save a log before your next
-  flight if you want to keep it.
+<a href="LICENSE.md"><img src="Licenses_facts.svg" width="400" alt="Open Source Licenses Facts"/></a>
 
-## Known gaps / honest limitations
+#### Hardware
+CERN Open Hardware License Version 2 - Strongly Reciprocal ([CERN-OHL-S-2.0](https://spdx.org/licenses/CERN-OHL-S-2.0.html)).
 
-- No OSD (excluded by request).
-- CLI tab is a read-only dump, not an interactive text command shell.
-- Motor spin-direction reversal and motor reordering are done from the Motors
-  tab (direction sends the real DShot command to the ESC; reorder is a firmware
-  remap that also affects flight). Direction reversal is unverified on real
-  hardware - if an ESC ignores it, swap two of that motor's bell wires instead.
-- Blackbox setpoint field currently logs raw stick input, not the post-
-  rate-curve deg/s setpoint the PID loop actually used (documented in
-  `docs/PROTOCOL.md`).
-- This hasn't flown. It compiles clean and its logic has been reasoned
-  through carefully, but "no compile errors" is not the same claim as
-  "tuned and flight-proven" - that part is on you, on the bench, props off,
-  before it ever sees a battery outdoors.
+#### Software
+MIT open source [license](http://opensource.org/licenses/MIT).
+
+#### Documentation:
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
+
+---
+
+## 📬 Contact/Team
+
+> _List team members and contact emails or GitHub profiles._
+
+- **Jatin Dixit** — jatin.dixit2013@gmail.com — _[add your GitHub handle here]_
+>
+> ---

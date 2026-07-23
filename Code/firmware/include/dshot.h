@@ -19,7 +19,7 @@
 //
 // Honest caveat: the GCR response decode is CRC-checked (garbage is dropped,
 // never acted on) but has not been verified against real ESC hardware - see
-// docs/BENCH_TEST.md step 7 for how to confirm it on the bench, and the
+// Documentation/BENCH_TEST.md step 7 for how to confirm it on the bench, and the
 // configurator's Configuration tab for the toggle (save + reboot to apply).
 // ============================================================================
 

@@ -3,7 +3,7 @@
 
 // ============================================================================
 // Hardware pin map - Seeed XIAO ESP32-S3 (non-Sense)
-// See docs/HARDWARE.md for the full wiring rationale.
+// See Electronics/HARDWARE.md for the full wiring rationale.
 // ============================================================================
 
 // Motors - bidirectional DShot300 via RMT, one channel per motor.
