@@ -2,6 +2,7 @@
 #include "imu.h"
 #include "settings.h"
 #include "esc_telemetry.h"
+#include "dshot.h"
 #include "filters.h"
 #include "config.h"
 #include <Arduino.h>
@@ -42,10 +43,18 @@ float applyRates(float stickInput, const RateProfile& rp) {
 }
 
 float computeMotorAvgHz(const Settings& s) {
+    // Per motor: prefer bidirectional-DShot eRPM (fresh every frame) and fall
+    // back to the slower telemetry-wire eRPM when bidir data is stale/absent.
     uint32_t sum = 0;
     int count = 0;
     uint32_t now = millis();
     for (int m = 0; m < 4; m++) {
+        const DshotTelemetry& bd = dshotGetTelemetry(m);
+        if (bd.lastUpdateMs != 0 && (now - bd.lastUpdateMs) < 200) {
+            sum += bd.eRpm;
+            count++;
+            continue;
+        }
         const MotorTelemetry& t = escTelemetryGet(m);
         if (t.lastUpdateMs != 0 && (now - t.lastUpdateMs) < 500) {
             sum += t.eRpm;

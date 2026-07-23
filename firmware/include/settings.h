@@ -52,10 +52,11 @@ struct Settings {
     // --- Rates ---
     RateProfile rates[3];   // 0=roll, 1=pitch, 2=yaw
 
-    // --- Mixer ---
+    // --- Mixer / motor protocol ---
     float motorIdlePercent;    // 0-100, spun-up idle to avoid desync
     bool motorDirectionReversed[4];
     bool motorInvertYaw;       // swap yaw sign, e.g. props-out builds
+    bool bidirDshotEnabled;    // inverted DShot300 + per-motor eRPM readback; needs save+reboot to change
 
     // --- Board alignment (mounting orientation) ---
     float boardAlignRollDeg;

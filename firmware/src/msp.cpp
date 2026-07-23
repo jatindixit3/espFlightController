@@ -4,6 +4,7 @@
 #include "imu.h"
 #include "sbus.h"
 #include "esc_telemetry.h"
+#include "dshot.h"
 #include "blackbox.h"
 #include "flight_state.h"
 #include "pid.h"
@@ -199,6 +200,7 @@ void handleMisc() {
     w.f32(s.boardAlignRollDeg);
     w.f32(s.boardAlignPitchDeg);
     w.f32(s.boardAlignYawDeg);
+    w.u8(s.bidirDshotEnabled ? 1 : 0);
     sendFrame(MSP_MISC, w.buf, w.len);
 }
 
@@ -215,6 +217,9 @@ void handleSetMisc(Reader& r) {
     s.boardAlignRollDeg = r.f32();
     s.boardAlignPitchDeg = r.f32();
     s.boardAlignYawDeg = r.f32();
+    // Stored now, applied by dshotInit() on the next boot - re-initializing
+    // RMT live while the flight loop is running is not safe.
+    s.bidirDshotEnabled = r.u8() != 0;
     // Apply immediately so the change is visible without a reboot.
     imuSetBoardAlignment(s.boardAlignRollDeg, s.boardAlignPitchDeg, s.boardAlignYawDeg);
     sendFrame(MSP_SET_MISC, nullptr, 0);
@@ -237,12 +242,15 @@ void handleEscTelemetry() {
     Writer w;
     for (int i = 0; i < 4; i++) {
         const MotorTelemetry& t = escTelemetryGet(i);
+        const DshotTelemetry& bd = dshotGetTelemetry(i);
         w.u8(t.temperatureC);
         w.f32(t.voltage);
         w.f32(t.current);
         w.u16(t.consumptionMah);
         w.u32(t.eRpm);
         w.u32(t.lastUpdateMs);
+        w.u32(bd.eRpm);
+        w.u32(bd.lastUpdateMs);
     }
     sendFrame(MSP_ESC_TELEMETRY, w.buf, w.len);
 }

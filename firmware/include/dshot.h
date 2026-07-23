@@ -2,31 +2,44 @@
 #include <stdint.h>
 
 // ============================================================================
-// DShot300 motor output via the ESP32 RMT peripheral (one channel per motor).
+// DShot300 motor output via the ESP32-S3 RMT peripheral, with optional
+// bidirectional DShot (settings.bidirDshotEnabled, default ON).
 //
-// Design note: your ESCs support both bidirectional DShot (eRPM over the same
-// signal wire) and a separate telemetry wire. This firmware deliberately uses
-// ONLY the separate telemetry wire (see esc_telemetry.h) for RPM/voltage/
-// current, and keeps this DShot output plain and unidirectional.
+// Bidirectional mode: frames are sent inverted (line idles HIGH) with the
+// complemented checksum that tells the ESC to answer, and after each frame
+// the pin is switched to input so the ESC can send back a 21-bit GCR-encoded
+// eRPM response at 5/4 the TX bitrate. The S3's RMT has 4 TX-only channels
+// (0-3, one per motor) and 4 RX-only channels (4-7) - each motor gets a TX+RX
+// pair attached to the same GPIO through the GPIO matrix.
 //
-// Why: bidirectional DShot's return path is a GCR-encoded bit-banged decode
-// that is genuinely difficult to get right and effectively impossible to
-// verify without a logic analyzer and real ESCs on a bench - exactly the kind
-// of "looks plausible, subtly wrong" code that has no business anywhere near
-// a spinning propeller. The telemetry wire gives the same eRPM data (plus
-// voltage/current/temp) over a simple, well-defined UART protocol at a small
-// fraction of the risk. Motor throttle output (this module) never depends on
-// telemetry working at all, in either direction.
+// The separate ESC telemetry wire (esc_telemetry.h) stays wired and parsed:
+// it is the only source of voltage/current/temperature, and the RPM filter
+// falls back to its (slower) eRPM whenever bidir responses go stale - so a
+// decode problem in this module degrades filter quality, never motor control.
+//
+// Honest caveat: the GCR response decode is CRC-checked (garbage is dropped,
+// never acted on) but has not been verified against real ESC hardware - see
+// docs/BENCH_TEST.md step 7 for how to confirm it on the bench, and the
+// configurator's Configuration tab for the toggle (save + reboot to apply).
 // ============================================================================
+
+struct DshotTelemetry {
+    uint32_t eRpm;         // electrical RPM from the latest valid bidir response
+    uint32_t lastUpdateMs; // millis() of that response; 0 = never received
+};
 
 void dshotInit();
 
 // Commands all motors in one shot. Each value is 0 (motor stop / disarmed) or
 // DSHOT_MIN_THROTTLE..DSHOT_MAX_THROTTLE (48-2047). Called once per flight
-// loop iteration - non-blocking (each ~53us DShot300 frame safely completes
-// well within the 1ms loop period before the next call).
+// loop iteration. In bidir mode this also drains/decodes the previous cycle's
+// eRPM responses and re-arms capture (~120us total, well inside the 1ms loop).
 void dshotWriteThrottles(const uint16_t throttle[4]);
 
 // Immediately commands all motors to the stop value. Used by the arming/
 // failsafe logic as the hard, always-available "motors off now" path.
 void dshotStopAll();
+
+// Latest bidir eRPM for a motor. lastUpdateMs==0 or stale means no usable
+// bidir data - callers must fall back to escTelemetryGet().
+const DshotTelemetry& dshotGetTelemetry(int motorIndex);

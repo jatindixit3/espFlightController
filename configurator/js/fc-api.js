@@ -111,6 +111,7 @@ class FcApi {
             boardAlignRollDeg: r.f32(),
             boardAlignPitchDeg: r.f32(),
             boardAlignYawDeg: r.f32(),
+            bidirDshotEnabled: r.u8() !== 0,
         };
     }
 
@@ -127,6 +128,7 @@ class FcApi {
         w.f32(m.boardAlignRollDeg);
         w.f32(m.boardAlignPitchDeg);
         w.f32(m.boardAlignYawDeg);
+        w.u8(m.bidirDshotEnabled ? 1 : 0);
         await this.msp.sendCommand(MSP.SET_MISC, w.toUint8Array());
     }
 
@@ -153,6 +155,8 @@ class FcApi {
                 consumptionMah: r.u16(),
                 eRpm: r.u32(),
                 lastUpdateMs: r.u32(),
+                bidirErpm: r.u32(),
+                bidirLastUpdateMs: r.u32(),
             });
         }
         return motors;

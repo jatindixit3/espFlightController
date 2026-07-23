@@ -78,6 +78,18 @@ open `http://localhost:8000` in Chrome/Edge) and click **Connect**.
   - ESC Telemetry tab shows sane voltage/current/temp/eRPM for each motor
     while spinning - if a motor shows no telemetry, check that wire's solder
     joint before flying.
+  - **Bidirectional DShot check:** the "eRPM (DShot)" column should show live,
+    plausible values that scale with the throttle slider (roughly matching the
+    "eRPM (wire)" column). If it stays at "bidir: none" or shows garbage, either
+    your ESC firmware isn't auto-detecting the inverted protocol or the GCR
+    decode needs work on your specific hardware - in both cases, uncheck
+    "Bidirectional DShot" on the Configuration tab, Write + Save + Reboot,
+    and re-verify motors respond normally. The quad flies fine either way
+    (RPM filtering falls back to the telemetry wire); do NOT fly with motors
+    that don't respond crisply in motor test.
+  - If motors don't spin at all with bidirectional DShot enabled, that's the
+    ESC not understanding inverted DShot - disable the toggle as above and
+    re-test before doing anything else.
 
 ## 8. PID/Rates: start from the shipped defaults, don't guess big changes
 

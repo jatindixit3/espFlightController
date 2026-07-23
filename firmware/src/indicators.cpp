@@ -3,11 +3,12 @@
 #include "settings.h"
 #include "flight_state.h"
 #include "esc_telemetry.h"
-#include <Adafruit_NeoPixel.h>
+#include "ws2812.h"
 #include <Arduino.h>
 
 namespace {
-Adafruit_NeoPixel g_strip(LED_COUNT, PIN_LED_DATA, NEO_GRB + NEO_KHZ800);
+// LED strip is driven over SPI (see ws2812.h) - RMT is fully occupied by the
+// four bidirectional DShot motor channels.
 
 enum class BuzzerPattern { NONE, ARM, DISARM, BATTERY_WARNING, LOST_QUAD };
 BuzzerPattern g_activePattern = BuzzerPattern::NONE;
@@ -15,8 +16,7 @@ uint32_t g_patternStartMs = 0;
 bool g_wasArmed = false;
 
 void setAllPixels(uint8_t r, uint8_t g, uint8_t b) {
-    for (int i = 0; i < LED_COUNT; i++) g_strip.setPixelColor(i, g_strip.Color(r, g, b));
-    g_strip.show();
+    ws2812SetAll(r, g, b);
 }
 
 void startPattern(BuzzerPattern p, uint32_t now) {
@@ -60,9 +60,7 @@ void updateBuzzer(uint32_t now) {
 } // namespace
 
 void indicatorsInit() {
-    g_strip.begin();
-    g_strip.setBrightness(80);
-    setAllPixels(0, 0, 0);
+    ws2812Init(); // brightness is applied inside the driver
     pinMode(PIN_BUZZER, OUTPUT);
     g_wasArmed = false;
     g_activePattern = BuzzerPattern::NONE;

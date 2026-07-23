@@ -4,7 +4,7 @@
 
 namespace {
 constexpr uint32_t SETTINGS_MAGIC = 0x46433031; // "FC01"
-constexpr uint16_t SETTINGS_VERSION = 1;
+constexpr uint16_t SETTINGS_VERSION = 2; // v2: added bidirDshotEnabled
 constexpr const char* NVS_NAMESPACE = "fcsettings";
 constexpr const char* NVS_KEY = "blob";
 
@@ -39,6 +39,7 @@ void applyDefaults(Settings& s) {
     s.motorIdlePercent = 5.5f;
     for (int i = 0; i < 4; i++) s.motorDirectionReversed[i] = false;
     s.motorInvertYaw = false;
+    s.bidirDshotEnabled = true; // AM32 auto-detects the inverted protocol
 
     s.boardAlignRollDeg = 0.0f;
     s.boardAlignPitchDeg = 0.0f;

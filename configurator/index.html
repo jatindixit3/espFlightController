@@ -76,11 +76,11 @@
       know what's using what.</p>
       <table class="info-table">
         <tr><th>Function</th><th>Pin (XIAO label / GPIO)</th><th>Notes</th></tr>
-        <tr><td>Motor 1-4 (DShot300)</td><td>D0-D3 / GPIO1-4</td><td>RMT, unidirectional</td></tr>
+        <tr><td>Motor 1-4 (DShot300)</td><td>D0-D3 / GPIO1-4</td><td>RMT, bidirectional (eRPM readback)</td></tr>
         <tr><td>I2C SDA / SCL (MPU6050)</td><td>D4 / D5 (GPIO5/6)</td><td>400kHz Fast-mode</td></tr>
         <tr><td>ESC telemetry RX</td><td>D6 / GPIO43</td><td>UART, 115200 baud</td></tr>
         <tr><td>SBUS RX</td><td>D7 / GPIO44</td><td>UART, inverted, 100000 baud, 8E2</td></tr>
-        <tr><td>WS2812 LED data</td><td>D8 / GPIO7</td><td></td></tr>
+        <tr><td>WS2812 LED data</td><td>D8 / GPIO7</td><td>SPI-encoded (RMT is fully used by motors)</td></tr>
         <tr><td>Buzzer</td><td>D9 / GPIO8</td><td>via NPN transistor</td></tr>
         <tr><td>Spare</td><td>D10 / GPIO9</td><td>unused, reserved</td></tr>
         <tr><td>Configurator / CLI</td><td>USB-C (native USB-CDC)</td><td>this connection</td></tr>
@@ -102,6 +102,10 @@
         <h2>Motor / Battery</h2>
         <label>Motor idle % <input type="number" id="motorIdle" step="0.1"></label>
         <label>Motor pole pairs <input type="number" id="polePairs" step="1"></label>
+        <label><input type="checkbox" id="bidirDshot"> Bidirectional DShot (per-motor eRPM readback)</label>
+        <p class="hint">Changing this takes effect on the next boot: Write, Save To Flash, then Reboot FC.
+        If motors don't respond after enabling it, your ESC firmware may not auto-detect inverted
+        DShot - disable it again to fall back to normal DShot300.</p>
         <label>Battery cell override (0=auto) <input type="number" id="cellOverride" step="1"></label>
         <label>Warning V/cell <input type="number" id="battWarn" step="0.01"></label>
         <label>Critical V/cell <input type="number" id="battCrit" step="0.01"></label>
@@ -111,6 +115,7 @@
       <button class="load-btn" data-target="configuration">Read From FC</button>
       <button class="write-btn" data-target="configuration">Write To FC</button>
       <button class="save-btn">Save To Flash</button>
+      <button id="rebootBtn" class="danger-btn">Reboot FC</button>
       <span class="save-note">Write sends changes to RAM immediately; Save persists across reboots.</span>
     </div>
   </section>
@@ -213,7 +218,7 @@
     <div class="card">
       <h2>ESC Telemetry</h2>
       <table class="info-table" id="escTelemetryTable">
-        <tr><th>Motor</th><th>Temp</th><th>Voltage</th><th>Current</th><th>eRPM</th><th>Age</th></tr>
+        <tr><th>Motor</th><th>Temp</th><th>Voltage</th><th>Current</th><th>eRPM (wire)</th><th>eRPM (DShot)</th><th>Status</th></tr>
       </table>
     </div>
   </section>

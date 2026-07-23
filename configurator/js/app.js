@@ -218,6 +218,7 @@ async function loadMisc() {
     $('rxMax').value = m.rxMaxUs;
     $('failsafeTimeoutMs').value = m.failsafeTimeoutMs;
     $('blackboxRateDivider').value = m.blackboxRateDivider;
+    $('bidirDshot').checked = m.bidirDshotEnabled;
 }
 
 async function writeMisc() {
@@ -235,6 +236,7 @@ async function writeMisc() {
     m.rxMaxUs = parseInt($('rxMax').value) || 0;
     m.failsafeTimeoutMs = parseInt($('failsafeTimeoutMs').value) || 0;
     m.blackboxRateDivider = parseInt($('blackboxRateDivider').value) || 1;
+    m.bidirDshotEnabled = $('bidirDshot').checked;
     state.misc = m;
     await api.setMisc(m);
 }
@@ -532,8 +534,11 @@ function updateEscTelemetryTable(telemetry) {
     telemetry.forEach((t, i) => {
         const row = document.createElement('tr');
         row.className = 'esc-row';
+        const wireStatus = t.lastUpdateMs ? 'wire live' : 'wire: none';
+        const bidirStatus = t.bidirLastUpdateMs ? 'bidir live' : 'bidir: none';
         row.innerHTML = `<td>M${i + 1}</td><td>${t.tempC}&deg;C</td><td>${t.voltage.toFixed(2)}V</td>` +
-            `<td>${t.current.toFixed(2)}A</td><td>${t.eRpm}</td><td>${t.lastUpdateMs ? 'live' : 'no data'}</td>`;
+            `<td>${t.current.toFixed(2)}A</td><td>${t.eRpm}</td><td>${t.bidirErpm}</td>` +
+            `<td>${wireStatus} / ${bidirStatus}</td>`;
         table.appendChild(row);
     });
 }
@@ -676,4 +681,11 @@ document.querySelectorAll('.save-btn').forEach((btn) => {
             alert('Save failed: ' + e.message);
         }
     });
+});
+
+$('rebootBtn').addEventListener('click', async () => {
+    if (!msp.isConnected()) { alert('Connect first'); return; }
+    if (!confirm('Reboot the flight controller? The serial connection will drop - reconnect after it boots.')) return;
+    await api.reboot();
+    await disconnectFromFc();
 });

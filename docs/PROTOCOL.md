@@ -45,11 +45,11 @@ anything currently sent.
 | 109 | SET_RATES | request: same as RATES response / response (empty) | |
 | 110 | MODES | request (empty) / response | `for mode in 0..3 (ARM,ANGLE,HORIZON,BLACKBOX): {auxChannel:i8 (-1=unassigned, 0=AUX1), rangeStartUs:u16, rangeEndUs:u16}` |
 | 111 | SET_MODES | request: same as MODES response / response (empty) | |
-| 112 | MISC | request (empty) / response | `rxMinUs:u16, rxMidUs:u16, rxMaxUs:u16, motorIdlePercent:f32, batteryCellOverride:i8 (0=auto), batteryWarnV:f32 (per cell), batteryCritV:f32 (per cell), blackboxRateDivider:u8, motorPolePairs:u8, failsafeTimeoutMs:u32, boardAlignRollDeg:f32, boardAlignPitchDeg:f32, boardAlignYawDeg:f32` |
+| 112 | MISC | request (empty) / response | `rxMinUs:u16, rxMidUs:u16, rxMaxUs:u16, motorIdlePercent:f32, batteryCellOverride:i8 (0=auto), batteryWarnV:f32 (per cell), batteryCritV:f32 (per cell), blackboxRateDivider:u8, motorPolePairs:u8, failsafeTimeoutMs:u32, boardAlignRollDeg:f32, boardAlignPitchDeg:f32, boardAlignYawDeg:f32, bidirDshotEnabled:u8` — the bidir flag is stored immediately but only applied by the next boot (RMT can't be re-initialized live); SET + SAVE_SETTINGS + REBOOT to change it |
 | 113 | SET_MISC | request: same as MISC response / response (empty) | |
 | 114 | CALIBRATE_GYRO | request (empty) | response: `success:u8`. **Blocks the FC for up to ~12s** - keep the board still, same as any FC's gyro calibration. Gated on the accelerometer confirming stillness; `success=0` means it never saw a still-enough window in time. |
 | 115 | MOTOR_TEST | request: `throttle[4]:u16 (DShot values, 0 or 48-2047)` / response (empty) | Only takes effect while **disarmed**; expires ~1s after the last command if not refreshed (send it repeatedly, e.g. every 200ms, while the motor test tab is open) |
-| 116 | ESC_TELEMETRY | request (empty) / response | `for motor in 0..3: {tempC:u8, voltage:f32, current:f32, consumptionMah:u16, eRpm:u32, lastUpdateMs:u32}` |
+| 116 | ESC_TELEMETRY | request (empty) / response | `for motor in 0..3: {tempC:u8, voltage:f32, current:f32, consumptionMah:u16, eRpm:u32, lastUpdateMs:u32, bidirErpm:u32, bidirLastUpdateMs:u32}` — the first eRpm/lastUpdateMs pair is from the telemetry wire, the bidir pair is from bidirectional DShot responses (0/0 = none received) |
 | 117 | BLACKBOX_INFO | request (empty) / response | `writeOffset:u32, partitionSize:u32` |
 | 118 | BLACKBOX_READ | request: `offset:u32, length:u16 (<=250)` / response: raw bytes (may be shorter than requested near partition end) | Configurator scans the returned bytes for `BlackboxFrame` records (see below) |
 | 119 | BLACKBOX_ERASE | request (empty) / response (empty) | |

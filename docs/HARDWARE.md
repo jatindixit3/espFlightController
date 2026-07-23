@@ -35,16 +35,31 @@ Physical wire-to-position mismatches are resolved via the configurator's
 Motors tab (spin one at a time, props off), not by getting the firmware
 table "correct" ahead of time.
 
-## Why both bidirectional DShot AND the telemetry wire are wired up
+## Bidirectional DShot AND the telemetry wire - both used, different jobs
 
-Your AM32 ESCs support both. The firmware only *uses* the telemetry wire (see
-`firmware/include/dshot.h` for the full reasoning) - bidirectional DShot's
-return path needs a GCR-encoded bit-bang decode that's very hard to verify
-without a logic analyzer and real ESCs on a bench. The telemetry wire gives
-the same eRPM data (plus voltage/current/temp) over a simple, well-defined
-UART protocol at a fraction of the risk. Wire both if your ESCs expose both
-pads - it costs nothing and leaves bidirectional DShot available for a future
-firmware revision if you want to add it yourself later.
+Your AM32 ESCs support both, and the firmware uses both:
+
+- **Bidirectional DShot** (enabled by default, `bidirDshotEnabled` in the
+  configurator's Configuration tab): each motor's signal line runs inverted
+  DShot300 out and receives the ESC's 21-bit GCR-encoded eRPM response back
+  on the same wire, every frame. This is the primary RPM source for the
+  RPM notch filter. Implementation: RMT TX channels 0-3 + RX channels 4-7,
+  one TX/RX pair per motor GPIO (see `firmware/src/dshot.cpp`).
+- **Telemetry wire** (UART on D6/GPIO43): the only source of pack voltage,
+  current, and ESC temperature - and the automatic RPM fallback whenever
+  bidir responses go stale. Keep it wired.
+
+Every bidir response is CRC-checked; garbage is dropped, never fed to the
+filter, and a decode failure can only ever degrade filter quality - motor
+throttle output does not depend on the return path in any way. The decode
+has not been verified against real ESC hardware yet: bench-verify it via the
+Motors tab's "eRPM (DShot)" column (docs/BENCH_TEST.md step 7), and if your
+ESCs fail to auto-detect the inverted protocol (motors unresponsive), turn
+the toggle off to revert to normal DShot300.
+
+Side effect worth knowing: with all 8 RMT channels consumed by motors, the
+WS2812 LED strip is driven by SPI instead (`firmware/src/ws2812.cpp`) - same
+D8/GPIO7 pin, no wiring change.
 
 ## Power: the 5V pad has no reverse-protection diode
 

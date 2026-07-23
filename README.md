@@ -1,7 +1,7 @@
 # ESP32-S3 Flight Controller
 
 A from-scratch Betaflight-style flight controller for the Seeed XIAO ESP32-S3,
-using an MPU6050 gyro/accel, AM32 ESCs over bidirectional-capable DShot300 +
+using an MPU6050 gyro/accel, AM32 ESCs over bidirectional DShot300 +
 ESC telemetry, and SBUS RC input - plus a browser-based tuning configurator
 that talks to it, modeled on Betaflight Configurator (minus OSD, which was
 explicitly out of scope).
@@ -88,12 +88,17 @@ tab itself for why). No OSD tab, per the original request.
   accelerometer confirms the board was genuinely still throughout the
   sampling window - otherwise it retries rather than baking in a bad bias
   from a board that was bumped mid-calibration.
-- **RPM-based notch filtering uses the ESC telemetry wire, not bidirectional
-  DShot.** Your ESCs support both; the firmware only uses the telemetry wire.
-  Bidirectional DShot's GCR-encoded return path is a genuinely hard,
-  effectively unverifiable-without-a-logic-analyzer decode - not something
-  that belongs near a spinning propeller on a first build. See the comment
-  block at the top of `firmware/include/dshot.h`.
+- **Bidirectional DShot is implemented and on by default** (per explicit
+  request), with the ESC telemetry wire kept as the voltage/current source
+  and automatic RPM fallback. Every GCR response is CRC-checked - a decode
+  failure can only degrade filter quality, never motor control - but the
+  decode is unverified on real hardware until you run the bench check in
+  `docs/BENCH_TEST.md` step 7. The toggle (Configuration tab) reverts to
+  normal DShot300 with a save + reboot. A side effect: the WS2812 strip
+  moved from the RMT-based Adafruit library to a custom SPI driver
+  (`firmware/src/ws2812.cpp`), because motors now consume all 8 RMT
+  channels - this also fixed a latent init-order conflict where the LED
+  library could steal motor 1's RMT channel.
 - **Battery voltage and current both come from ESC telemetry**, not a
   dedicated ADC voltage divider - per the "no extra components" constraint
   from the build spec. Trade-off: updates at the ESC's telemetry rate (tens
