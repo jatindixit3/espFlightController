@@ -112,6 +112,8 @@ class FcApi {
             boardAlignPitchDeg: r.f32(),
             boardAlignYawDeg: r.f32(),
             bidirDshotEnabled: r.u8() !== 0,
+            motorRemap: [r.u8(), r.u8(), r.u8(), r.u8()],
+            motorDirectionReversed: [r.u8() !== 0, r.u8() !== 0, r.u8() !== 0, r.u8() !== 0],
         };
     }
 
@@ -129,7 +131,23 @@ class FcApi {
         w.f32(m.boardAlignPitchDeg);
         w.f32(m.boardAlignYawDeg);
         w.u8(m.bidirDshotEnabled ? 1 : 0);
+        const remap = m.motorRemap || [0, 1, 2, 3];
+        for (let i = 0; i < 4; i++) w.u8(remap[i]);
+        // Sent back unchanged - direction is actually changed via setMotorDirection,
+        // not here (see fc firmware handleSetMisc).
+        const dir = m.motorDirectionReversed || [false, false, false, false];
+        for (let i = 0; i < 4; i++) w.u8(dir[i] ? 1 : 0);
         await this.msp.sendCommand(MSP.SET_MISC, w.toUint8Array());
+    }
+
+    // Reverses (or normalizes) one PHYSICAL motor output's spin direction at the
+    // ESC. Returns true if the FC accepted it (disarmed and not busy).
+    async setMotorDirection(physicalMotorIndex, reversed) {
+        const w = new BinWriter();
+        w.u8(physicalMotorIndex);
+        w.u8(reversed ? 1 : 0);
+        const p = await this.msp.sendCommand(MSP.SET_MOTOR_DIRECTION, w.toUint8Array());
+        return p.length >= 1 && p[0] === 1;
     }
 
     // Calibration blocks the FC for up to ~12s - use a long timeout.

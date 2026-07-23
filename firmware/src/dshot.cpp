@@ -36,6 +36,30 @@ rmt_channel_t g_rxChannels[4]; // S3 RMT channels 4-7 are the RX-capable ones
 RingbufHandle_t g_rxRingbuf[4] = {nullptr, nullptr, nullptr, nullptr};
 DshotTelemetry g_telemetry[4];
 
+// DShot special commands (values 0-47 in the throttle field, telemetry bit set).
+constexpr uint16_t DSHOT_CMD_SAVE_SETTINGS = 12;
+constexpr uint16_t DSHOT_CMD_SPIN_DIRECTION_NORMAL = 20;
+constexpr uint16_t DSHOT_CMD_SPIN_DIRECTION_REVERSED = 21;
+constexpr int DIR_CMD_REPEATS = 12;  // frames the direction command is held
+constexpr int SAVE_CMD_REPEATS = 12; // frames the save command is held
+
+// Per-motor direction-change sequencer, advanced one frame at a time from
+// dshotWriteThrottles (flight task). A motor mid-sequence sends its special
+// command instead of a throttle value; everything is disarmed while this runs.
+struct DirSeq {
+    int phase = 0;       // 0 idle, 1 sending direction cmd, 2 sending save cmd
+    int framesLeft = 0;
+    uint16_t dirCommand = DSHOT_CMD_SPIN_DIRECTION_NORMAL;
+};
+DirSeq g_dirSeq[4];
+
+// Set by the comms task (dshotRequestDirection), consumed by the flight task at
+// the top of dshotWriteThrottles - single-producer/single-consumer handoff so
+// the comms task never mutates g_dirSeq mid-sequence.
+volatile bool g_dirRequestPending = false;
+volatile int g_dirRequestMotor = 0;
+volatile bool g_dirRequestReversed = false;
+
 uint16_t buildDshotFrame(uint16_t throttleValue11bit, bool telemetryRequest) {
     uint16_t packet = (uint16_t)((throttleValue11bit << 1) | (telemetryRequest ? 1 : 0));
     uint16_t csumData = packet;
@@ -69,6 +93,29 @@ void writeMotor(int index, uint16_t throttleValue) {
     rmt_item32_t items[16];
     frameToItems(frame, items);
     rmt_write_items(g_txChannels[index], items, 16, false);
+}
+
+// Sends a DShot special command (0-47) with the telemetry-request bit set, as
+// spin-direction and save-settings commands require.
+void writeCommand(int index, uint16_t command) {
+    uint16_t frame = buildDshotFrame(command, true);
+    rmt_item32_t items[16];
+    frameToItems(frame, items);
+    rmt_write_items(g_txChannels[index], items, 16, false);
+}
+
+// Returns true and fills *cmdOut if this motor is mid-direction-sequence and
+// should send a special command this frame instead of its throttle. Advances
+// the sequence.
+bool advanceDirSeq(int index, uint16_t* cmdOut) {
+    DirSeq& d = g_dirSeq[index];
+    if (d.phase == 0) return false;
+    *cmdOut = (d.phase == 1) ? d.dirCommand : DSHOT_CMD_SAVE_SETTINGS;
+    if (--d.framesLeft <= 0) {
+        if (d.phase == 1) { d.phase = 2; d.framesLeft = SAVE_CMD_REPEATS; }
+        else { d.phase = 0; } // save done
+    }
+    return true;
 }
 
 // Decodes one captured RMT item sequence into an eRPM value. Returns false on
@@ -205,6 +252,23 @@ void dshotInit() {
 }
 
 void dshotWriteThrottles(const uint16_t throttle[4]) {
+    // Consume a pending direction-change request (from the comms task) into the
+    // sequencer. Ignored unless every motor is stopped this frame (throttle 0),
+    // which is only true while disarmed - a direction change must never begin
+    // while a motor is spinning.
+    if (g_dirRequestPending) {
+        bool allStopped = true;
+        for (int i = 0; i < MOTOR_COUNT; i++) if (throttle[i] != 0) allStopped = false;
+        int m = g_dirRequestMotor;
+        if (allStopped && m >= 0 && m < MOTOR_COUNT && g_dirSeq[m].phase == 0) {
+            g_dirSeq[m].phase = 1;
+            g_dirSeq[m].framesLeft = DIR_CMD_REPEATS;
+            g_dirSeq[m].dirCommand = g_dirRequestReversed ? DSHOT_CMD_SPIN_DIRECTION_REVERSED
+                                                          : DSHOT_CMD_SPIN_DIRECTION_NORMAL;
+        }
+        g_dirRequestPending = false;
+    }
+
     if (g_bidir) {
         // Harvest whatever responses arrived since the previous frame, then
         // quiesce RX so it doesn't capture our own outgoing TX.
@@ -216,7 +280,12 @@ void dshotWriteThrottles(const uint16_t throttle[4]) {
     }
 
     for (int i = 0; i < MOTOR_COUNT; i++) {
-        writeMotor(i, throttle[i]);
+        uint16_t command;
+        if (advanceDirSeq(i, &command)) {
+            writeCommand(i, command);
+        } else {
+            writeMotor(i, throttle[i]);
+        }
     }
 
     if (g_bidir) {
@@ -239,4 +308,17 @@ void dshotStopAll() {
 
 const DshotTelemetry& dshotGetTelemetry(int motorIndex) {
     return g_telemetry[motorIndex];
+}
+
+void dshotRequestDirection(int motorIndex, bool reversed) {
+    if (motorIndex < 0 || motorIndex >= MOTOR_COUNT) return;
+    g_dirRequestMotor = motorIndex;
+    g_dirRequestReversed = reversed;
+    g_dirRequestPending = true; // set last: the flight task reads this as the ready flag
+}
+
+bool dshotDirectionBusy() {
+    if (g_dirRequestPending) return true;
+    for (int i = 0; i < MOTOR_COUNT; i++) if (g_dirSeq[i].phase != 0) return true;
+    return false;
 }

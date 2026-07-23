@@ -45,10 +45,10 @@ anything currently sent.
 | 109 | SET_RATES | request: same as RATES response / response (empty) | |
 | 110 | MODES | request (empty) / response | `for mode in 0..3 (ARM,ANGLE,HORIZON,BLACKBOX): {auxChannel:i8 (-1=unassigned, 0=AUX1), rangeStartUs:u16, rangeEndUs:u16}` |
 | 111 | SET_MODES | request: same as MODES response / response (empty) | |
-| 112 | MISC | request (empty) / response | `rxMinUs:u16, rxMidUs:u16, rxMaxUs:u16, motorIdlePercent:f32, batteryCellOverride:i8 (0=auto), batteryWarnV:f32 (per cell), batteryCritV:f32 (per cell), blackboxRateDivider:u8, motorPolePairs:u8, failsafeTimeoutMs:u32, boardAlignRollDeg:f32, boardAlignPitchDeg:f32, boardAlignYawDeg:f32, bidirDshotEnabled:u8` — the bidir flag is stored immediately but only applied by the next boot (RMT can't be re-initialized live); SET + SAVE_SETTINGS + REBOOT to change it |
+| 112 | MISC | request (empty) / response | `rxMinUs:u16, rxMidUs:u16, rxMaxUs:u16, motorIdlePercent:f32, batteryCellOverride:i8 (0=auto), batteryWarnV:f32 (per cell), batteryCritV:f32 (per cell), blackboxRateDivider:u8, motorPolePairs:u8, failsafeTimeoutMs:u32, boardAlignRollDeg:f32, boardAlignPitchDeg:f32, boardAlignYawDeg:f32, bidirDshotEnabled:u8, motorRemap[4]:u8 (motorRemap[logicalMotor]=physical output 0-3), motorDirectionReversed[4]:u8` — bidir flag applies on next boot (SET+SAVE+REBOOT). `motorRemap` is applied live. `motorDirectionReversed` is **report-only** in SET_MISC (the FC reads the 4 bytes for payload symmetry but does not reprogram any ESC from here — use command 123); send them back unchanged |
 | 113 | SET_MISC | request: same as MISC response / response (empty) | |
 | 114 | CALIBRATE_GYRO | request (empty) | response: `success:u8`. **Blocks the FC for up to ~12s** - keep the board still, same as any FC's gyro calibration. Gated on the accelerometer confirming stillness; `success=0` means it never saw a still-enough window in time. |
-| 115 | MOTOR_TEST | request: `throttle[4]:u16 (DShot values, 0 or 48-2047)` / response (empty) | Only takes effect while **disarmed**; expires ~1s after the last command if not refreshed (send it repeatedly, e.g. every 200ms, while the motor test tab is open) |
+| 115 | MOTOR_TEST | request: `throttle[4]:u16 (DShot values, 0 or 48-2047), physical-output order` / response (empty) | Only takes effect while **disarmed** and no direction change is in progress; expires ~1s after the last command if not refreshed (send every ~200ms while the tab is open). Each value is **hard-clamped in firmware to 50%** (MOTOR_TEST_MAX_DSHOT) regardless of what is sent. |
 | 116 | ESC_TELEMETRY | request (empty) / response | `for motor in 0..3: {tempC:u8, voltage:f32, current:f32, consumptionMah:u16, eRpm:u32, lastUpdateMs:u32, bidirErpm:u32, bidirLastUpdateMs:u32}` — the first eRpm/lastUpdateMs pair is from the telemetry wire, the bidir pair is from bidirectional DShot responses (0/0 = none received) |
 | 117 | BLACKBOX_INFO | request (empty) / response | `writeOffset:u32, partitionSize:u32` |
 | 118 | BLACKBOX_READ | request: `offset:u32, length:u16 (<=250)` / response: raw bytes (may be shorter than requested near partition end) | Configurator scans the returned bytes for `BlackboxFrame` records (see below) |
@@ -56,6 +56,7 @@ anything currently sent.
 | 120 | SAVE_SETTINGS | request (empty) / response (empty) | persists current RAM settings to NVS flash |
 | 121 | RESET_DEFAULTS | request (empty) / response (empty) | resets RAM settings to firmware defaults and saves |
 | 122 | REBOOT | request (empty) | response is sent, then the FC reboots ~50ms later - the serial connection will drop |
+| 123 | SET_MOTOR_DIRECTION | request: `physicalMotorIndex:u8 (0-3), reversed:u8` / response: `accepted:u8` | Sends the real DShot SPIN_DIRECTION_NORMAL/REVERSED + SAVE_SETTINGS commands to that ESC over ~24 flight-loop frames and stores the flag in `motorDirectionReversed`. `accepted=0` if the FC is armed, already mid-change, or the index is invalid. Props off, disarmed only. |
 
 ## Blackbox frame format (read back via BLACKBOX_READ)
 

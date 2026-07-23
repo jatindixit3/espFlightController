@@ -37,6 +37,7 @@ enum : uint8_t {
     MSP_SAVE_SETTINGS = 120,
     MSP_RESET_DEFAULTS = 121,
     MSP_REBOOT = 122,
+    MSP_SET_MOTOR_DIRECTION = 123,
 };
 
 constexpr uint8_t FRAME_MAX_PAYLOAD = 250;
@@ -201,6 +202,8 @@ void handleMisc() {
     w.f32(s.boardAlignPitchDeg);
     w.f32(s.boardAlignYawDeg);
     w.u8(s.bidirDshotEnabled ? 1 : 0);
+    for (int i = 0; i < 4; i++) w.u8(s.motorRemap[i]);
+    for (int i = 0; i < 4; i++) w.u8(s.motorDirectionReversed[i] ? 1 : 0); // report-only (see handleSetMisc)
     sendFrame(MSP_MISC, w.buf, w.len);
 }
 
@@ -220,6 +223,16 @@ void handleSetMisc(Reader& r) {
     // Stored now, applied by dshotInit() on the next boot - re-initializing
     // RMT live while the flight loop is running is not safe.
     s.bidirDshotEnabled = r.u8() != 0;
+    for (int i = 0; i < 4; i++) {
+        uint8_t out = r.u8();
+        s.motorRemap[i] = (out < 4) ? out : (uint8_t)i; // clamp invalid -> identity
+    }
+    // motorDirectionReversed is report-only here: direction is changed by the
+    // dedicated MSP_SET_MOTOR_DIRECTION command (which actually talks to the
+    // ESC). We still read the 4 bytes to keep the get/set payload symmetric,
+    // and store them as the FC's memory, but this write does NOT reprogram any
+    // ESC - it only records what the UI already believes.
+    for (int i = 0; i < 4; i++) s.motorDirectionReversed[i] = r.u8() != 0;
     // Apply immediately so the change is visible without a reboot.
     imuSetBoardAlignment(s.boardAlignRollDeg, s.boardAlignPitchDeg, s.boardAlignYawDeg);
     sendFrame(MSP_SET_MISC, nullptr, 0);
@@ -233,9 +246,36 @@ void handleCalibrateGyro() {
 }
 
 void handleMotorTest(Reader& r) {
-    for (int i = 0; i < 4; i++) g_motorTestThrottle[i] = r.u16();
+    for (int i = 0; i < 4; i++) {
+        uint16_t v = r.u16();
+        // Hard-clamp to the motor-test ceiling here, in firmware, so no
+        // configurator bug (or hand-crafted packet) can command more than
+        // MOTOR_TEST_MAX_PERCENT. 0 stays 0 (stop).
+        if (v != 0) {
+            if (v < DSHOT_MIN_THROTTLE) v = DSHOT_MIN_THROTTLE;
+            if (v > MOTOR_TEST_MAX_DSHOT) v = MOTOR_TEST_MAX_DSHOT;
+        }
+        g_motorTestThrottle[i] = v;
+    }
     g_motorTestLastMs = millis();
     sendFrame(MSP_MOTOR_TEST, nullptr, 0);
+}
+
+void handleSetMotorDirection(Reader& r) {
+    uint8_t motorIndex = r.u8();
+    uint8_t reversed = r.u8();
+    const FlightState& fs = flightStateGet();
+    Writer w;
+    // Only honored while disarmed and not already mid-change - never reprogram
+    // an ESC's direction while anything could be spinning.
+    if (!fs.armed && !dshotDirectionBusy() && motorIndex < 4) {
+        dshotRequestDirection(motorIndex, reversed != 0);
+        settingsGet().motorDirectionReversed[motorIndex] = (reversed != 0);
+        w.u8(1); // accepted
+    } else {
+        w.u8(0); // rejected (armed, busy, or bad index)
+    }
+    sendFrame(MSP_SET_MOTOR_DIRECTION, w.buf, w.len);
 }
 
 void handleEscTelemetry() {
@@ -323,6 +363,7 @@ void dispatch(uint8_t cmd, const uint8_t* payload, uint8_t len) {
         case MSP_SAVE_SETTINGS: handleSaveSettings(); break;
         case MSP_RESET_DEFAULTS: handleResetDefaults(); break;
         case MSP_REBOOT: handleReboot(); break;
+        case MSP_SET_MOTOR_DIRECTION: handleSetMotorDirection(r); break;
         default: break; // unknown command - silently ignored
     }
 }
@@ -378,6 +419,9 @@ void mspUpdate() {
 bool mspGetMotorTestOverride(uint16_t outThrottle[4]) {
     const FlightState& fs = flightStateGet();
     if (fs.armed) return false;
+    // Don't drive throttles while a direction-change sequence owns the motor
+    // outputs (dshotWriteThrottles is sending special commands those frames).
+    if (dshotDirectionBusy()) return false;
     if (g_motorTestLastMs == 0 || (millis() - g_motorTestLastMs) > 1000) return false;
     for (int i = 0; i < 4; i++) outThrottle[i] = g_motorTestThrottle[i];
     return true;

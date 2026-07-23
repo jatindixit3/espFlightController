@@ -147,6 +147,22 @@ canvas { background: var(--bg); border-radius: 8px; display: block; }
 .motor-slider-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
 .motor-slider-row input[type="range"] { flex: 1; }
 
+.throttle-label { display: flex; align-items: center; gap: 10px; }
+.throttle-label input[type="range"] { flex: 1; }
+
+.quadx-diagram { max-width: 320px; margin: 12px auto; }
+.quadx-svg { width: 100%; height: auto; }
+.quadx-arm { stroke: var(--border); stroke-width: 10; stroke-linecap: round; }
+.quadx-body { fill: var(--border); }
+.quadx-motor circle { fill: var(--bg); stroke: var(--subtle); stroke-width: 2; transition: fill 0.1s, stroke 0.1s; }
+.quadx-motor:hover circle { stroke: var(--accent); }
+.quadx-motor.spinning circle { fill: var(--green); stroke: var(--green); }
+.quadx-num { fill: var(--text); font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+.quadx-spin { fill: var(--subtle); font-size: 16px; text-anchor: middle; dominant-baseline: middle; }
+.quadx-motor.spinning .quadx-num, .quadx-motor.spinning .quadx-spin { fill: #06210f; }
+.quadx-front { fill: var(--subtle); font-size: 12px; letter-spacing: 2px; text-anchor: middle; }
+.quadx-front-arrow { fill: var(--subtle); }
+
 textarea {
   width: 100%;
   background: var(--bg);

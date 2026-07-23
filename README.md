@@ -77,9 +77,11 @@ Then open `http://localhost:8000` in **Chrome or Edge** (Web Serial isn't
 implemented in Firefox/Safari). Click **Connect**, pick the FC's serial port.
 
 Tabs: Setup, Ports (informational - pins are fixed, see HARDWARE.md),
-Configuration, PID Tuning, Rates, Receiver, Modes, Motors, Failsafe,
-Blackbox, CLI (read-only settings dump, not an interactive shell - see the
-tab itself for why). No OSD tab, per the original request.
+Configuration, PID Tuning, Rates, Receiver, Modes, Motors (Betaflight-style
+QuadX diagram - click a motor to spin it, reorder outputs, reverse direction;
+throttle capped at 50%), Failsafe, Blackbox, CLI (read-only settings dump, not
+an interactive shell - see the tab itself for why). No OSD tab, per the
+original request.
 
 ## Key design decisions worth knowing about
 
@@ -114,8 +116,10 @@ tab itself for why). No OSD tab, per the original request.
 
 - No OSD (excluded by request).
 - CLI tab is a read-only dump, not an interactive text command shell.
-- Motor spin-direction reversal isn't wired up in firmware - set it via your
-  AM32 configurator/passthrough, or swap two motor bell wires.
+- Motor spin-direction reversal and motor reordering are done from the Motors
+  tab (direction sends the real DShot command to the ESC; reorder is a firmware
+  remap that also affects flight). Direction reversal is unverified on real
+  hardware - if an ESC ignores it, swap two of that motor's bell wires instead.
 - Blackbox setpoint field currently logs raw stick input, not the post-
   rate-curve deg/s setpoint the PID loop actually used (documented in
   `docs/PROTOCOL.md`).

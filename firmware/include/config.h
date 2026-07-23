@@ -55,6 +55,14 @@ constexpr uint32_t BLACKBOX_DEFAULT_RATE_DIVIDER = 2; // log every Nth loop by d
 // ============================================================================
 constexpr uint16_t DSHOT_MIN_THROTTLE = 48;    // DShot value just above the 0-47 command range
 constexpr uint16_t DSHOT_MAX_THROTTLE = 2047;
+
+// Motor-test safety ceiling. Bench motor testing (props off) never needs full
+// throttle - this caps every configurator motor-test command, enforced in
+// firmware so even a buggy/hostile UI cannot command more. 50% is a deliberate
+// safe pick, not a Betaflight figure (Betaflight's sliders go to 100%).
+constexpr float MOTOR_TEST_MAX_PERCENT = 50.0f;
+constexpr uint16_t MOTOR_TEST_MAX_DSHOT =
+    (uint16_t)(DSHOT_MIN_THROTTLE + (MOTOR_TEST_MAX_PERCENT / 100.0f) * (DSHOT_MAX_THROTTLE - DSHOT_MIN_THROTTLE));
 constexpr float GYRO_CALIBRATION_STILLNESS_ACCEL_TOLERANCE_G = 0.05f; // accel vector must read 1g +/- this
 constexpr float GYRO_CALIBRATION_STILLNESS_GYRO_TOLERANCE_DPS = 2.0f; // gyro noise must be below this while "still"
 constexpr uint32_t GYRO_CALIBRATION_DURATION_MS = 2000;

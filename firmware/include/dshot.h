@@ -43,3 +43,15 @@ void dshotStopAll();
 // Latest bidir eRPM for a motor. lastUpdateMs==0 or stale means no usable
 // bidir data - callers must fall back to escTelemetryGet().
 const DshotTelemetry& dshotGetTelemetry(int motorIndex);
+
+// Requests a persistent spin-direction change for one PHYSICAL motor output.
+// Sends the real DShot SPIN_DIRECTION_NORMAL/REVERSED command followed by
+// SAVE_SETTINGS, spread over the next ~24 flight-loop frames; the ESC stores
+// it. Thread-safe to call from the comms task. The change is only started if
+// all motors are stopped (i.e. disarmed) when the flight loop picks it up, so
+// direction can never flip on a spinning motor. Call only while disarmed.
+void dshotRequestDirection(int motorIndex, bool reversed);
+
+// True while a direction request is pending or a sequence is running. Motor
+// test and arming should be suppressed while this is true.
+bool dshotDirectionBusy();

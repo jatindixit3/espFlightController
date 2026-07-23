@@ -66,15 +66,20 @@ open `http://localhost:8000` in Chrome/Edge) and click **Connect**.
 
 - **Confirm props are physically off the frame.** Look at all four motors
   with your own eyes.
-- Enable motor test, spin each motor individually at low throttle, confirm:
-  - It's the physical motor you expected for that slider (M1-M4 per
-    `docs/HARDWARE.md`'s mixer table) - reassign wiring or accept the mapping
-    and remember it, your choice.
-  - Rotation direction is correct for a standard QuadX layout (diagonal
-    pairs spin the same direction, adjacent motors spin opposite). Wrong
-    direction means swap two of that motor's three wires at the ESC, or set
-    direction via your AM32 configurator/passthrough (this firmware doesn't
-    do it in-flight, see the README's known gaps).
+- Tick "Props are off, enable motor test". Test throttle defaults to 10% and
+  is capped at 50% (firmware-enforced) - a gentle spin is all you need.
+- **Click each motor in the QuadX diagram** (front is up) to spin it. Confirm:
+  - **Position:** the motor that spins is in the diagram position you clicked
+    (M1 rear-right, M2 front-right, M3 rear-left, M4 front-left). If the wrong
+    physical motor spins, use the **Motor Reordering** card to remap that
+    position to the correct output, then Write + Save. This fixes flight too.
+  - **Direction:** each motor's spin must match its diagram arrow (↻ = CW,
+    ↺ = CCW; diagonal pairs match, adjacent motors oppose). If a motor spins
+    the wrong way, click **Reverse** in the Motor Direction card - this sends
+    the real DShot direction command to that ESC and saves it. (Direction
+    reversal is unverified on real hardware; if Reverse has no effect, your
+    ESC may not accept the command - fall back to swapping two of that motor's
+    three bell wires.)
   - ESC Telemetry tab shows sane voltage/current/temp/eRPM for each motor
     while spinning - if a motor shows no telemetry, check that wire's solder
     joint before flying.

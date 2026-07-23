@@ -54,13 +54,23 @@ void flightTask(void* /*param*/) {
 
         PidOutput pidOut = pidUpdate(fs.rcCommand, fs.mode, dt);
 
-        uint16_t motorThrottle[4];
+        uint16_t motorThrottle[4];   // physical-output order, ready for DShot
         uint16_t testOverride[4];
         if (mspGetMotorTestOverride(testOverride)) {
+            // Motor test values are already in physical-output order (the
+            // configurator applies the remap when it picks which motor to spin).
             for (int i = 0; i < 4; i++) motorThrottle[i] = testOverride[i];
         } else {
+            uint16_t logical[4];
             MixerInput mixIn{fs.throttle, pidOut.roll, pidOut.pitch, pidOut.yaw};
-            mixerCompute(mixIn, fs.armed, motorThrottle);
+            mixerCompute(mixIn, fs.armed, logical);
+            // Reorder logical mixer motors onto physical outputs per motorRemap.
+            Settings& cfg = settingsGet();
+            for (int i = 0; i < 4; i++) motorThrottle[i] = 0;
+            for (int i = 0; i < 4; i++) {
+                uint8_t out = cfg.motorRemap[i];
+                if (out < 4) motorThrottle[out] = logical[i];
+            }
         }
 
         dshotWriteThrottles(motorThrottle);

@@ -54,9 +54,11 @@ struct Settings {
 
     // --- Mixer / motor protocol ---
     float motorIdlePercent;    // 0-100, spun-up idle to avoid desync
-    bool motorDirectionReversed[4];
+    bool motorDirectionReversed[4]; // per PHYSICAL output; FC's memory of the last direction it
+                                    // commanded via DShot (the ESC itself is authoritative)
     bool motorInvertYaw;       // swap yaw sign, e.g. props-out builds
     bool bidirDshotEnabled;    // inverted DShot300 + per-motor eRPM readback; needs save+reboot to change
+    uint8_t motorRemap[4];     // motorRemap[logicalMotor] = physical output index (0-3) that drives it
 
     // --- Board alignment (mounting orientation) ---
     float boardAlignRollDeg;

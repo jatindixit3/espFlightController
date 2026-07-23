@@ -26,6 +26,7 @@ const MSP = {
     SAVE_SETTINGS: 120,
     RESET_DEFAULTS: 121,
     REBOOT: 122,
+    SET_MOTOR_DIRECTION: 123,
 };
 
 class BinWriter {

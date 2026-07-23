@@ -63,6 +63,10 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
         btn.classList.add('active');
         $('tab-' + btn.dataset.tab).classList.add('active');
         state.activeTab = btn.dataset.tab;
+        // Auto-pull the motor remap/direction state when entering the Motors tab.
+        if (state.activeTab === 'motors' && msp.isConnected()) {
+            loadMotorsTab().catch((e) => console.error('motors auto-load failed', e));
+        }
     });
 });
 
@@ -474,44 +478,177 @@ async function writeModesTab() {
 }
 
 // ---------------------------------------------------------------------------
-// Motors tab
+// Motors tab (Betaflight-style QuadX)
 // ---------------------------------------------------------------------------
 
-function ensureMotorSliders() {
-    const container = $('motorSliders');
-    if (container.children.length === 4) return;
-    container.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
-        const row = document.createElement('div');
-        row.className = 'motor-slider-row';
-        const label = document.createElement('div');
-        label.textContent = `M${i + 1}`;
-        const slider = document.createElement('input');
-        slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = 0;
-        slider.id = `motorSlider${i}`;
-        slider.disabled = true;
-        const value = document.createElement('div');
-        value.id = `motorSliderValue${i}`;
-        value.style.width = '40px';
-        value.textContent = '0%';
-        slider.addEventListener('input', () => {
-            value.textContent = slider.value + '%';
-            const pct = parseInt(slider.value);
-            state.motorTestValues[i] = pct === 0 ? 0 : Math.round(48 + (pct / 100) * (2047 - 48));
+// Logical motor positions in Betaflight QuadX order (index = mixer motor 0-3).
+// yaw is the mixer's yaw sign for that motor; we render +1 as clockwise (from
+// above) and -1 as counter-clockwise. The absolute CW/CCW is a convention, but
+// which positions must match each other is fixed by the firmware mixer.
+const QUADX = [
+    { num: 1, label: 'Rear Right',  x: 210, y: 208, yaw: -1 },
+    { num: 2, label: 'Front Right', x: 210, y: 92,  yaw: +1 },
+    { num: 3, label: 'Rear Left',   x: 90,  y: 208, yaw: +1 },
+    { num: 4, label: 'Front Left',  x: 90,  y: 92,  yaw: -1 },
+];
+const MOTOR_TEST_MAX_PERCENT = 50; // must match firmware config.h
+
+state.motorRemap = [0, 1, 2, 3];
+state.spinningPosition = -1; // logical position currently spinning, -1 = none
+state.testThrottlePct = 10;
+
+function pctToDshot(pct) {
+    if (pct <= 0) return 0;
+    return Math.round(48 + (pct / 100) * (2047 - 48));
+}
+
+function rebuildMotorTestValues() {
+    // Physical-output order: everything 0 except the output driving the spinning position.
+    const values = [0, 0, 0, 0];
+    if (state.motorTestEnabled && state.spinningPosition >= 0) {
+        const physical = state.motorRemap[state.spinningPosition];
+        if (physical >= 0 && physical < 4) values[physical] = pctToDshot(state.testThrottlePct);
+    }
+    state.motorTestValues = values;
+}
+
+function renderQuadxDiagram() {
+    const el = $('quadxDiagram');
+    const arms = `<line x1="90" y1="92" x2="210" y2="208" class="quadx-arm"/>` +
+                 `<line x1="210" y1="92" x2="90" y2="208" class="quadx-arm"/>`;
+    let motors = '';
+    for (let p = 0; p < 4; p++) {
+        const m = QUADX[p];
+        const spinning = state.spinningPosition === p;
+        const spinGlyph = m.yaw > 0 ? '↻' : '↺'; // CW / CCW
+        motors +=
+            `<g class="quadx-motor ${spinning ? 'spinning' : ''}" data-position="${p}" style="cursor:pointer">` +
+            `<circle cx="${m.x}" cy="${m.y}" r="30"/>` +
+            `<text x="${m.x}" y="${m.y - 2}" class="quadx-num">${m.num}</text>` +
+            `<text x="${m.x}" y="${m.y + 18}" class="quadx-spin">${spinGlyph}</text>` +
+            `</g>`;
+    }
+    const front = `<text x="150" y="20" class="quadx-front">FRONT</text>` +
+                  `<polygon points="150,26 144,36 156,36" class="quadx-front-arrow"/>`;
+    el.innerHTML =
+        `<svg viewBox="0 0 300 300" class="quadx-svg" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="130" y="130" width="40" height="40" rx="6" class="quadx-body"/>` +
+        arms + front + motors + `</svg>`;
+
+    el.querySelectorAll('.quadx-motor').forEach((g) => {
+        g.addEventListener('click', () => {
+            if (!state.motorTestEnabled) { alert('Tick "Props are off, enable motor test" first.'); return; }
+            const p = parseInt(g.dataset.position);
+            state.spinningPosition = (state.spinningPosition === p) ? -1 : p; // toggle
+            rebuildMotorTestValues();
+            renderQuadxDiagram();
         });
-        row.appendChild(label);
-        row.appendChild(slider);
-        row.appendChild(value);
-        container.appendChild(row);
+    });
+}
+
+function renderMotorRemapTable() {
+    const table = $('motorRemapTable');
+    table.querySelectorAll('tr.remap-row').forEach((r) => r.remove());
+    for (let p = 0; p < 4; p++) {
+        const row = document.createElement('tr');
+        row.className = 'remap-row';
+        const nameCell = document.createElement('td');
+        nameCell.textContent = `M${QUADX[p].num} (${QUADX[p].label})`;
+        const selCell = document.createElement('td');
+        const sel = document.createElement('select');
+        sel.id = `remap-${p}`;
+        for (let out = 0; out < 4; out++) {
+            const opt = document.createElement('option');
+            opt.value = out;
+            opt.textContent = `Output ${out + 1} (D${out})`;
+            sel.appendChild(opt);
+        }
+        sel.value = state.motorRemap[p];
+        sel.addEventListener('change', () => {
+            state.motorRemap[p] = parseInt(sel.value);
+            rebuildMotorTestValues();
+            renderMotorDirTable(); // "Output" column depends on the remap
+        });
+        selCell.appendChild(sel);
+        row.appendChild(nameCell);
+        row.appendChild(selCell);
+        table.appendChild(row);
     }
 }
-ensureMotorSliders();
+
+function renderMotorDirTable() {
+    const table = $('motorDirTable');
+    table.querySelectorAll('tr.dir-row').forEach((r) => r.remove());
+    const reversed = (state.misc && state.misc.motorDirectionReversed) || [false, false, false, false];
+    for (let p = 0; p < 4; p++) {
+        const physical = state.motorRemap[p];
+        const row = document.createElement('tr');
+        row.className = 'dir-row';
+        const isRev = reversed[physical];
+        row.innerHTML =
+            `<td>M${QUADX[p].num} (${QUADX[p].label})</td>` +
+            `<td>Output ${physical + 1}</td>` +
+            `<td>${isRev ? 'Reversed' : 'Normal'}</td>`;
+        const btnCell = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.textContent = isRev ? 'Set Normal' : 'Reverse';
+        btn.addEventListener('click', async () => {
+            if (!msp.isConnected()) { alert('Connect first'); return; }
+            if (!state.motorTestEnabled) { alert('Tick "Props are off, enable motor test" first.'); return; }
+            btn.disabled = true;
+            try {
+                const ok = await api.setMotorDirection(physical, !isRev);
+                if (ok) {
+                    if (!state.misc) state.misc = {};
+                    if (!state.misc.motorDirectionReversed) state.misc.motorDirectionReversed = [false, false, false, false];
+                    state.misc.motorDirectionReversed[physical] = !isRev;
+                    renderMotorDirTable();
+                } else {
+                    alert('FC rejected the direction change (must be disarmed and not already changing a motor).');
+                }
+            } catch (e) {
+                alert('Direction change failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+        btnCell.appendChild(btn);
+        row.appendChild(btnCell);
+        table.appendChild(row);
+    }
+}
+
+async function loadMotorsTab() {
+    await loadMisc(); // fills state.misc incl. motorRemap + motorDirectionReversed
+    state.motorRemap = (state.misc.motorRemap || [0, 1, 2, 3]).slice();
+    renderQuadxDiagram();
+    renderMotorRemapTable();
+    renderMotorDirTable();
+}
+
+async function writeMotorsTab() {
+    // Only the remap is user-editable here; direction goes via setMotorDirection.
+    // Reuse writeMisc so we don't clobber other MISC fields - inject the remap.
+    if (!state.misc) await loadMisc();
+    state.misc.motorRemap = state.motorRemap.slice();
+    await writeMisc();
+}
+
+$('motorTestThrottle').addEventListener('input', (e) => {
+    let pct = parseInt(e.target.value);
+    if (pct > MOTOR_TEST_MAX_PERCENT) pct = MOTOR_TEST_MAX_PERCENT;
+    state.testThrottlePct = pct;
+    $('motorTestThrottleVal').textContent = pct + '%';
+    rebuildMotorTestValues();
+});
 
 $('motorTestArm').addEventListener('change', (e) => {
     state.motorTestEnabled = e.target.checked;
-    for (let i = 0; i < 4; i++) $(`motorSlider${i}`).disabled = !state.motorTestEnabled;
+    $('motorTestThrottle').disabled = !state.motorTestEnabled;
 
     if (state.motorTestEnabled) {
+        renderQuadxDiagram();
+        renderMotorDirTable();
         state.motorTestTimer = setInterval(async () => {
             if (!msp.isConnected()) return;
             try { await api.motorTest(state.motorTestValues); } catch (e) { /* ignore transient errors */ }
@@ -519,14 +656,17 @@ $('motorTestArm').addEventListener('change', (e) => {
     } else {
         if (state.motorTestTimer) clearInterval(state.motorTestTimer);
         state.motorTestTimer = null;
+        state.spinningPosition = -1;
         state.motorTestValues = [0, 0, 0, 0];
-        for (let i = 0; i < 4; i++) {
-            $(`motorSlider${i}`).value = 0;
-            $(`motorSliderValue${i}`).textContent = '0%';
-        }
+        renderQuadxDiagram();
         if (msp.isConnected()) api.motorTest([0, 0, 0, 0]).catch(() => {});
     }
 });
+
+// Initial render so the diagram is visible before connecting.
+renderQuadxDiagram();
+renderMotorRemapTable();
+renderMotorDirTable();
 
 function updateEscTelemetryTable(telemetry) {
     const table = $('escTelemetryTable');
@@ -651,6 +791,7 @@ const TAB_HANDLERS = {
     rates: { load: loadRates, write: writeRates },
     receiver: { load: loadMisc, write: writeMisc },
     modes: { load: loadModesTab, write: writeModesTab },
+    motors: { load: loadMotorsTab, write: writeMotorsTab },
     failsafe: { load: loadMisc, write: writeMisc },
     blackbox: { load: async () => { await loadMisc(); await loadBlackboxInfo(); }, write: writeMisc },
 };

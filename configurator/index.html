@@ -209,12 +209,46 @@
 
   <section id="tab-motors" class="tab-panel">
     <div class="card danger-card">
-      <h2>Motor Test</h2>
+      <h2>Motor Test &mdash; QuadX</h2>
       <p class="hint"><strong>Remove propellers before using this tab.</strong> Motor test only works
-      while disarmed, but the motors WILL spin.</p>
+      while disarmed, but the motors WILL spin. Test throttle is capped at 50% in firmware for safety;
+      you never need more than a gentle spin to check position and direction.</p>
       <label><input type="checkbox" id="motorTestArm"> Props are off, enable motor test</label>
-      <div id="motorSliders"></div>
+      <label class="throttle-label">Test throttle
+        <input type="range" id="motorTestThrottle" min="0" max="50" value="10" step="1" disabled>
+        <span id="motorTestThrottleVal">10%</span>
+      </label>
+      <div id="quadxDiagram" class="quadx-diagram"></div>
+      <p class="hint">Click a motor to spin it (front is up). Click it again, or click another, to switch.
+      Only one motor spins at a time.</p>
     </div>
+
+    <div class="card">
+      <h2>Motor Reordering</h2>
+      <p class="hint">If a motor spins in the wrong <em>position</em> during the test, remap which
+      physical output (the ESC signal wire, D0&ndash;D3) drives each QuadX position. This applies to
+      real flight too, not just the test.</p>
+      <table class="info-table" id="motorRemapTable">
+        <tr><th>QuadX position</th><th>Driven by output</th></tr>
+      </table>
+      <div class="card-actions">
+        <button class="load-btn" data-target="motors">Read From FC</button>
+        <button class="write-btn" data-target="motors">Write To FC</button>
+        <button class="save-btn">Save To Flash</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Motor Direction</h2>
+      <p class="hint">If a motor spins the wrong <em>way</em>, reverse it here. This sends the real
+      DShot spin-direction command to that ESC and saves it &mdash; props off, disarmed only. The
+      diagram arrows show the direction the firmware's yaw mixing expects for each position; make
+      each motor match its arrow.</p>
+      <table class="info-table" id="motorDirTable">
+        <tr><th>Position</th><th>Output</th><th>Last set</th><th></th></tr>
+      </table>
+    </div>
+
     <div class="card">
       <h2>ESC Telemetry</h2>
       <table class="info-table" id="escTelemetryTable">
